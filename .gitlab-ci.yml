@@ -1,0 +1,48 @@
+stages:
+  - pre_requisites
+  - build
+  - deploy
+
+variables:
+  DEMO_SERVER: "172.31.30.63"  # Change to your private IP
+
+before_script:
+  - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+  - eval $(ssh-agent -s)
+  - echo "$REACT_DEMO" | tr -d '\r' | ssh-add -
+  - mkdir -p ~/.ssh
+  - chmod 700 ~/.ssh
+  - ssh-keyscan -H $DEMO_SERVER >> ~/.ssh/known_hosts
+
+pre_requisites:
+  stage: pre_requisites
+  tags:
+    - agent
+    - cicd
+  script:
+    - |
+      ssh ubuntu@$DEMO_SERVER << 'EOF'
+        rm -rf /home/ubuntu/Udemy-section6
+        git clone https://gitlab.com/sagarkakkala-group/Udemy-section6.git
+        cd Udemy-section6
+        chmod 744 build.sh
+        chmod 744 deploy.sh
+      EOF
+
+build:
+  stage: build
+  tags:
+    - agent
+    - cicd
+  needs: ["pre_requisites"]
+  script:
+    - ssh ubuntu@$DEMO_SERVER "bash /home/ubuntu/Udemy-section6/build.sh"
+
+deploy:
+  stage: deploy
+  tags:
+    - agent
+    - cicd
+  needs: ["build"]
+  script:
+    - ssh ubuntu@$DEMO_SERVER "bash /home/ubuntu/Udemy-section6/deploy.sh"
