@@ -1,93 +1,166 @@
-# Udemy-section7
+# GitLab CI/CD: Using a Self-Hosted Runner on AWS
 
+## 👤 Step 0: Create GitLab Account
 
+Start by creating a GitLab account using your existing email ID. You can then either:
 
-## Getting started
+- Import your project from GitHub to GitLab
+- Or create a new repository directly in your GitLab account
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## 🔐 GitLab Token for Git Push
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+Generate a **GitLab Personal Access Token** and use it for pushing code using the following format:
 
-## Add your files
+```bash
+git push https://<username>:<token>@gitlab.com/sagarkakkala-group
+````
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+---
 
+## 🖥️ Step 1: Create AWS Instance and Setup SSH
+
+1. Launch an AWS EC2 Instance to act as the self-hosted runner.
+2. Establish an SSH connection between the self-hosted server and the Demo Server.
+
+## 🔑 Step 2: Generate SSH Key Pair
+
+```bash
+ssh-keygen
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/sagarkakkala-group/udemy-section7.git
-git branch -M main
-git push -uf origin main
+
+This generates a key pair at:
+
+* `/home/ubuntu/.ssh/id_rsa` (private key)
+* `/home/ubuntu/.ssh/id_rsa.pub` (public key)
+
+Copy the public key content and paste it into the `authorized_keys` file on the Demo Server.
+
+## 🔁 Step 3: Test SSH Connection
+
+```bash
+ssh ubuntu@{DemoServer_Private_IP}
+exit
 ```
 
-## Integrate with your tools
+---
 
-- [ ] [Set up project integrations](https://gitlab.com/sagarkakkala-group/udemy-section7/-/settings/integrations)
+## 💾 Step 4: Store Private Key as GitLab Variable
 
-## Collaborate with your team
+Go to:
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+`Settings → CI/CD → Variables`
 
-## Test and Deploy
+Paste the contents of your private key into a variable named:
 
-Use the built-in continuous integration in GitLab.
+```text
+UBUNTU_SERVER_SSH
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+---
 
-***
+## ⚙️ Step 5: Set Up GitLab Runner
 
-# Editing this README
+Navigate to:
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+`Settings → CI/CD → Runners`
 
-## Suggestions for a good README
+Follow the instructions provided and assign appropriate tags. Make sure the runner and the demo server can communicate via SSH.
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### 🧰 Install GitLab Runner
 
-## Name
-Choose a self-explaining name for your project.
+```bash
+# Download the binary
+sudo curl -L --output /usr/local/bin/gitlab-runner https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-linux-amd64
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+# Make it executable
+sudo chmod +x /usr/local/bin/gitlab-runner
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+# Create a user for GitLab Runner
+sudo useradd --comment 'GitLab Runner' --create-home gitlab-runner --shell /bin/bash
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+# Install and start as a service
+sudo gitlab-runner install --user=gitlab-runner --working-directory=/home/gitlab-runner
+sudo gitlab-runner start
+```
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+### 📝 Register the Runner
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+```bash
+gitlab-runner register \
+  --url https://gitlab.com \
+  --token <your-registration-token>
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+Replace `<your-registration-token>` with your actual GitLab runner token.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+---
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+## 📄 Step 6: Create `.gitlab-ci.yml`
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+```yaml
+stages:
+  - pre_requisites
+  - build
+  - deploy
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+variables:
+  DEMO_SERVER: "172.31.30.63"  # Change to your private IP
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+before_script:
+  - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+  - eval $(ssh-agent -s)
+  - echo "$UDEMY_SERVER_SSH_KEY" | tr -d '\r' | ssh-add -
+  - mkdir -p ~/.ssh
+  - chmod 700 ~/.ssh
+  - ssh-keyscan -H $AWS_PRIVATE_IP >> ~/.ssh/known_hosts
 
-## License
-For open source projects, say how it is licensed.
+pre_requisites:
+  stage: pre_requisites
+  tags:
+    - agent
+    - cicd
+  script:
+    - |
+      ssh ubuntu@$AWS_PRIVATE_IP << 'EOF'
+        rm -rf /home/ubuntu/udemy-section7
+        git clone https://gitlab.com/sagarkakkala-group/Udemy-section6.git
+        cd udemy-section7
+        chmod 744 build.sh
+        chmod 744 deploy.sh
+      EOF
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+build:
+  stage: build
+  tags:
+    - agent
+    - cicd
+  needs: ["pre_requisites"]
+  script:
+    - ssh ubuntu@$AWS_PRIVATE_IP "bash /home/ubuntu/Udemy-section6/build.sh"
+
+deploy:
+  stage: deploy
+  tags:
+    - agent
+    - cicd
+  needs: ["build"]
+  script:
+    - ssh ubuntu@$AWS_PRIVATE_IP "bash /home/ubuntu/Udemy-section6/deploy.sh"
+```
+
+### This pipeline performs three main stages:
+
+* **pre\_requisites**: Clones the repo and sets file permissions
+* **build**: Executes the `build.sh` script
+* **deploy**: Executes the `deploy.sh` script
+
+---
+
+## 🔗 Connect with Me
+
+I post content related to contrafactums, fun vlogs, travel stories, DevOps and more. Use the link below for all access:
+
+[🌐 Sagar Kakkala One Stop](https://linktr.ee/sagar_kakkalas_world)
+
+🖊 Feedback, queries, and suggestions are welcome in the comments.
+
